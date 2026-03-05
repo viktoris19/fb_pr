@@ -1,0 +1,25 @@
+# OS
+.DS_Store
+**/.DS_Store
+__MACOSX/
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+# Env
+.env
+.env.*.local
+# Editor
+.vscode/
+.idea/
+# OS / IDE
+# Build
+dist/
+build/
+.env.*
+# Data / local stores (на всякий случай)
+**/db/
+**/*.db
+**/store/
+**/*store*.json

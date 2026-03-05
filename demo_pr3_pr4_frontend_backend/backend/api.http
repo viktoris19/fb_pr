@@ -1,0 +1,46 @@
+### Healthcheck
+GET http://localhost:3000/
+
+### 1) GET all products
+GET http://localhost:3000/api/products
+
+### 2) POST create product
+POST http://localhost:3000/api/products
+Content-Type: application/json
+
+{
+  "title": "Печенье",
+  "category": "Сладости",
+  "description": "Тестовый товар",
+  "price": 79,
+  "stock": 10
+}
+
+### 3) PATCH update product (подставьте реальный id из списка)
+PATCH http://localhost:3000/api/products/{{id}}
+Content-Type: application/json
+
+{
+  "price": 199
+}
+
+### 4) DELETE product (подставьте реальный id)
+DELETE http://localhost:3000/api/products/{{id}}
+
+########################################################
+# Практика 3 — Внешнее API (пример).
+# ВАЖНО: В методичке требуется сделать 5 запросов к внешнему API.
+# Ниже два варианта:
+#
+# Вариант A (без ключа): JSONPlaceholder
+# Вариант B (с ключом): OpenWeatherMap (требуется API key)
+########################################################
+
+### Внешнее API (без ключа) — JSONPlaceholder: 1 пост
+GET https://jsonplaceholder.typicode.com/posts/1
+
+### Внешнее API (без ключа) — JSONPlaceholder: список пользователей
+GET https://jsonplaceholder.typicode.com/users
+
+### Внешнее API (с ключом) — OpenWeatherMap (подставьте ключ в query)
+# GET https://api.openweathermap.org/data/2.5/weather?q=Moscow&appid={{OWM_KEY}}&units=metric&lang=ru

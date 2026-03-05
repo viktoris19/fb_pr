@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Практика 1 — карточка товара (SCSS)</title>
+
+    <!-- Результат компиляции SCSS -->
+    <link rel="stylesheet" href="./styles/main.scss" />
+  </head>
+  <body>
+    <main class="page">
+      <article class="product-card product-card--accent">
+       <img class="product-card__image" src="image.png" alt="Наушники ProSound">
+        <div class="product-card__content">
+          <h1 class="product-card__title">Наушники ProSound</h1>
+          <p class="product-card__desc">
+            Лёгкие, удобные, с хорошей шумоизоляцией. Пример карточки для практики.
+          </p>
+
+          <div class="product-card__footer">
+            <span class="product-card__price">4 990 ₽</span>
+            <a class="btn" href="#">Купить</a>
+          </div>
+        </div>
+      </article>
+
+      <section class="note">
+        <h2 class="note__title">Что нужно сделать студенту</h2>
+        <ol class="note__list">
+          <li>Изменить карточку под свой товар.</li>
+          <li>Добавить минимум 2 переменные, 1 миксин, вложенность.</li>
+          <li>Скомпилировать SCSS в CSS (папка <code>public/</code>).</li>
+        </ol>
+      </section>
+    </main>
+  </body>
+</html>

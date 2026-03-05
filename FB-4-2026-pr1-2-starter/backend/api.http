@@ -1,0 +1,35 @@
+### Проверка, что сервер жив
+GET http://localhost:3000/
+
+### Получить все товары
+GET http://localhost:3000/api/products
+
+### Получить товар по id
+GET http://localhost:3000/api/products/1
+
+### Создать товар
+POST http://localhost:3000/api/products
+Content-Type: application/json
+
+{
+  "title": "Печенье",
+  "price": 79
+}
+
+### Частично обновить товар (PATCH)
+PATCH http://localhost:3000/api/products/1
+Content-Type: application/json
+
+{
+  "price": 250
+}
+
+### Удалить товар
+DELETE http://localhost:3000/api/products/2
+
+
+### curl (если не используете VS Code REST Client)
+# curl http://localhost:3000/api/products
+# curl -X POST http://localhost:3000/api/products -H "Content-Type: application/json" -d "{\"title\":\"Печенье\",\"price\":79}"
+# curl -X PATCH http://localhost:3000/api/products/1 -H "Content-Type: application/json" -d "{\"price\":250}"
+# curl -X DELETE http://localhost:3000/api/products/2
