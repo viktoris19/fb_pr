@@ -1,0 +1,47 @@
+// variables
+$card-bg: #f9f9f9;
+$text-dark: #333;
+$text-light: #666;
+$border-radius: 12px;
+$gap: 20px;
+
+@mixin card-shadow {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.product-card {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: $gap;
+    max-width: 800px;
+    background: $card-bg;
+    border-radius: $border-radius;
+    padding: $gap;
+    @include card-shadow;
+
+    &__image {
+        width: 100%;
+        height: auto;
+        border-radius: $border-radius;
+        object-fit: cover;
+    }
+
+    &__content {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    &__title {
+        font-size: 28px;
+        margin: 0 0 10px 0;
+        color: $text-dark;
+    }
+
+    &__description {
+        font-size: 16px;
+        margin: 0;
+        color: $text-light;
+        line-height: 1.5;
+    }
+}
