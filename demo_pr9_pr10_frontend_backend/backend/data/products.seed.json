@@ -1,0 +1,22 @@
+[
+  {
+    "id": "p1",
+    "title": "Печенье",
+    "price": 79,
+    "category": "Сладости",
+    "description": "...",
+    "stock": 20,
+    "rating": 4.6,
+    "imageUrl": ""
+  },
+  {
+    "id": "INUi_Iqa",
+    "title": "13133",
+    "price": 1231312
+  },
+  {
+    "id": "uaipEQ_a",
+    "title": "1111",
+    "price": 11111
+  }
+]
