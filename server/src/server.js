@@ -30,7 +30,12 @@ app.use(express.json());
 
 // --- Статика (фронтенд PWA) ---
 const FRONTEND_DIR = path.join(__dirname, '..', '..');
+// '..', '..' - поднимаемся на два уровня вверх
 app.use(express.static(FRONTEND_DIR));
+// Если приходит запрос за файлом — ищи этот файл в FRONTEND_DIR и отдай его как есть
+// Сервер показывает ваш index.html, потому что express.static(FRONTEND_DIR) раздаёт корень проекта как “папку сайта”, а вы открываете этот сайт по https://localhost:3443.
+
+//API-шка 
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, ts: new Date().toISOString() });
@@ -39,8 +44,13 @@ app.get('/api/health', (req, res) => {
 // --- Push: учебное хранилище подписок (в памяти процесса) ---
 // TODO (студентам): заменить на БД/Redis, если усложняем проект.
 const subscriptions = new Set();
+// В учебном примере храним подписки в памяти процесса 
+// Подписка (PushSubscription) — это “адрес”, куда можно отправлять push именно этому браузеру на этом устройстве.
 
 // Настройка web-push (если ключи есть)
+// Подпись сервера, чтобы push-сервис (Chrome/Firefox push service) доверял запросам сервера.
+
+
 let pushReady = false;
 try {
   configureWebPush({
@@ -53,10 +63,20 @@ try {
   console.warn('[PUSH] Not configured:', e.message);
 }
 
+// Если ключей нет → pushReady=false → /api/push/test вернёт ошибку push_not_configured.
+
+
+
 /**
  * Практика 16: сохранить push‑подписку
  * Клиент отправляет объект subscription (PushSubscription.toJSON())
  */
+
+// Как подписка попадает на сервер (endpoint /api/push/subscribe)
+// 1.	Клиент делает POST /api/push/subscribe и отправляет JSON подписки.
+// 2.	Сервер кладёт подписку в Set.
+// 3.	Сервер отвечает “ок, я запомнил”.
+
 app.post('/api/push/subscribe', (req, res) => {
   const subscription = req.body;
   if (!subscription) {
@@ -73,6 +93,15 @@ app.post('/api/push/subscribe', (req, res) => {
  * - сделать payload содержательным (title/body/url)
  * - обработать отвалившиеся подписки (410/404)
  */
+
+// Тест Push 
+// Как сервер отправляет push (endpoint /api/push/test)
+// 1.	Вы жмёте кнопку / делаете запрос POST /api/push/test.
+// 2.	Сервер берёт все сохранённые подписки. 
+// 3.	Для каждой подписки вызывает sendNotification(...) — это реальная отправка пуша через библиотеку web-push.
+// 4.	Браузер получает push (даже если вкладка закрыта, но браузер запущен).
+
+
 app.post('/api/push/test', async (req, res) => {
   if (!pushReady) {
     return res.status(400).json({ error: 'push_not_configured', message: 'Set VAPID keys in server/.env' });
