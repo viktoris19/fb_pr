@@ -43,6 +43,7 @@ const newQuoteBtn = document.getElementById('newQuoteBtn');
  * уже в другую запись хранилища.
  */
 const STORAGE_KEY = 'practice_13_14_todos_v2';
+const VAPID_PUBLIC_KEY = 'BIofx2e8Gq_Zk6PtUFTFX8aRDxRh3XWfKVdsqHgfajhwQQ5t4gCIqFTsivbo8sSrQayEWWJbmfnKQU028bijihM';
 
 /**
  * Массив цитат для нижнего блока.
@@ -68,6 +69,8 @@ const planningQuotes = [
  * - объекту события, если браузер разрешил показать install-prompt.
  */
 let deferredInstallPrompt = null;
+let socket = null;
+let isSubscribed = false;
 
 // =========================================================
 // Работа с localStorage
@@ -89,6 +92,34 @@ function loadTasks() {
   } catch (error) {
     console.error('Не удалось прочитать задачи из localStorage:', error);
     return [];
+  }
+}
+
+async function loadContent(page) {
+  try{
+    const response = await fetch(`/content/${page}.html`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const html = await response.text();
+
+    const appContent = document.getElementById('app-content');
+    if (appContent) {
+      appContent.innerHTML = html;
+    }
+
+    document.querySelectorAll('.nav-link').forEach(link => {
+      link.classList.remove('active');
+      if (link.dataset.page == page) {
+        link.classList.add('active');
+      }
+    });
+
+    history.pushState({page}, '',`#${page}`);
+  } catch (error) {
+    console.error('Ошибка загрузки контента:', error);
+    const appContent = document.getElementById('app-content');
+    if (appContent) {
+      appContent.innerHTML = '<div class="card"><p>❌ Не удалось загрузить контент. Проверьте соединение.</p></div>';
+    }
   }
 }
 
@@ -166,11 +197,15 @@ function createTaskElement(task) {
   const actions = document.createElement('div');
   actions.className = 'task-item__actions';
 
-  /**
-   * TODO для студентов:
-   * Добавить рядом кнопку редактирования и реализовать изменение текста задачи.
-   */
+  // Кнопка редактирования
+  const editBtn = document.createElement('button');
+  editBtn.type = 'button';
+  editBtn.className = 'button button--secondary button--small';
+  editBtn.textContent = 'Редактировать';
+  editBtn.dataset.action = 'edit';
+  actions.appendChild(editBtn);
 
+  // Кнопка удаления
   const deleteBtn = document.createElement('button');
   deleteBtn.type = 'button';
   deleteBtn.className = 'button button--danger button--small';
@@ -196,28 +231,43 @@ function updateStats(tasks) {
   taskStats.textContent = `Всего: ${total} | Активных: ${active} | Выполненных: ${completed}`;
 }
 
+let currentFilter = 'all';
 /**
  * Полная перерисовка списка задач.
  * Для учебного проекта это допустимый и понятный подход.
  */
 function renderTasks() {
-  const tasks = loadTasks();
+  const allTasks = loadTasks();
+  let filteredTasks = allTasks;
+
+  if (currentFilter === 'active') {
+    filteredTasks = allTasks.filter(task => !task.completed);
+  } else if (currentFilter === 'completed') {
+    filteredTasks = allTasks.filter(task => task.completed);
+  }
+
   taskList.innerHTML = '';
 
-  if (tasks.length === 0) {
+  if (filteredTasks.length === 0) {
     const emptyState = document.createElement('li');
     emptyState.className = 'empty-state';
-    emptyState.textContent = 'Пока задач нет. Добавьте первую запись.';
+    if (currentFilter === 'active') {
+      emptyState.textContent = 'Нет активных задач. Отдохни! 🎉';
+    } else if (currentFilter === 'completed') {
+      emptyState.textContent = 'Нет выполненных задач. Вперёд! 🚀';
+    } else {
+      emptyState.textContent = 'Пока задач нет. Добавьте первую запись.';
+    }
     taskList.appendChild(emptyState);
-    updateStats(tasks);
+    updateStats(allTasks);
     return;
   }
 
-  tasks.forEach((task) => {
+  filteredTasks.forEach((task) => {
     taskList.appendChild(createTaskElement(task));
   });
 
-  updateStats(tasks);
+  updateStats(allTasks);
 }
 
 // =========================================================
@@ -248,6 +298,13 @@ function addTask(text) {
   tasks.unshift(newTask);
   saveTasks(tasks);
   renderTasks();
+  emitTaskEvent('task:added',newTask);
+}
+
+function emitTaskEvent(eventName,taskData){
+  if (socket && socket.connected) {
+    socket.emit(eventName,taskData);
+  }
 }
 
 /**
@@ -270,19 +327,39 @@ function toggleTask(taskId) {
 }
 
 /**
+ * Редактирует задачу
+ */
+function editTask(taskId) {
+  const tasks = loadTasks();
+  const task = tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  const newText = prompt('Редактировать задачу:', task.text);
+  if (!newText || newText.trim() === '') return;
+
+  task.text = newText.trim();
+  saveTasks(tasks);
+  renderTasks();
+  emitTaskEvent('task:updated',task);
+}
+
+/**
  * Удаляет задачу по id.
  * Подтверждение специально не добавлено: это TODO для студентов.
  */
 function deleteTask(taskId) {
+  if (!confirm('Удалить задачу?')) return;
   const updated = loadTasks().filter((task) => task.id !== taskId);
   saveTasks(updated);
   renderTasks();
+  emitTaskEvent('task:deleted',taskId);
 }
 
 /**
  * Удаляет все выполненные задачи.
  */
 function clearCompletedTasks() {
+  if (!confirm('Удалить все выполненные задачи?')) return;
   const updated = loadTasks().filter((task) => !task.completed);
   saveTasks(updated);
   renderTasks();
@@ -388,16 +465,226 @@ function registerServiceWorker() {
       const registration = await navigator.serviceWorker.register('./sw.js');
       console.log('Service Worker зарегистрирован:', registration.scope);
 
-      /**
-       * TODO для студентов:
-       * 1. Добавить интерфейсное уведомление о том, что офлайн-режим готов.
-       * 2. Обработать сценарий появления новой версии Service Worker.
-       * 3. Показать пользователю кнопку "Обновить приложение".
-       */
+      showOfflineReadyNotification();
+
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        console.log('Найдена новая версия Service Worker');
+
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            showUpdateNotification(registration);
+          }
+        });
+      });
+
+      if (registration.waiting) {
+        showUpdateNotification(registration);
+      }
+
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        console.log('Service Worker обновлён, перезагружаем страницу');
+        window.location.reload();
+      });
+
     } catch (error) {
       console.error('Ошибка регистрации Service Worker:', error);
     }
   });
+}
+
+function showOfflineReadyNotification() {
+  const notification = document.createElement('div');
+  notification.className = 'notification notification--success';
+  notification.innerHTML = `
+    <span>✅ Приложение готово к работе офлайн</span>
+    <button class="notification-close">×</button>
+  `;
+  
+  document.body.appendChild(notification);
+
+  setTimeout(() => notification.classList.add('show'),10);
+
+  notification.querySelector('.notification-close').addEventListener('click', () => {
+    notification.classList.remove('show');
+    setTimeout(() => notification.remove(), 300);
+  });
+}
+
+function showUpdateNotification(registration) {
+  if (document.querySelector('.notification--update')) return;
+
+  const notification = document.createElement('div');
+  notification.className = 'notification notification--update';
+  notification.innerHTML = `
+    <span>🔄 Доступна новая версия приложения</span>
+    <button class="notification-update-btn">Обновить</button>
+    <button class="notification-close">×</button>
+  `;
+
+  document.body.appendChild(notification);
+  setTimeout(() => notification.classList.add('show'), 10);
+  
+  notification.querySelector('.notification-update-btn').addEventListener('click', () => {
+    if (registration.waiting) {
+      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+    }
+  });
+  
+  notification.querySelector('.notification-close').addEventListener('click', () => {
+    notification.classList.remove('show');
+    setTimeout(() => notification.remove(), 300);
+  });
+}
+
+function initWebSocket() {
+  socket = io('https://localhost:3443', {
+    reconnection: true,
+    reconnectionAttempts: 5
+  });
+
+  socket.on('connect', () => {
+    console.log('✅ WebSocket подключён');
+    updateNetworkStatus();
+  });
+
+  socket.on('disconnect', () => {
+    console.log('❌ WebSocket отключён');
+  });
+
+  socket.on('task:added',(task) => {
+    console.log('Добавлена задача другим пользователем:',task);
+    const tasks = loadTasks();
+    if (!tasks.find (t => t.id === task.id)) {
+      tasks.unshift(task);
+      saveTasks(tasks);
+      renderTasks();
+      showToast(`Новая задача: ${task.text.substring(0, 30)}`);
+    }
+  })
+
+  socket.on('task:deleted', (taskId) => {
+    console.log('Удалена задача другим пользователем:', taskId);
+    const tasks = loadTasks().filter(t => t.id !== taskId);
+    saveTasks(tasks);
+    renderTasks();
+    showToast('Задача удалена другим пользователем');
+  });
+
+  socket.on('task:updated', (updatedTask) => {
+    console.log('Обновлена задача другим пользователем:', updatedTask);
+    const tasks = loadTasks().map(t => t.id === updatedTask.id ? updatedTask : t);
+    saveTasks(tasks);
+    renderTasks();
+    showToast(`Задача обновлена: ${updatedTask.text.substring(0, 30)}`);
+  });
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+//Отправка push-уведомления
+async function sendTestPush() {
+  try {
+    const response = await fetch('/api/push/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Тестовое уведомление',
+        body: `Привет! Время: ${new Date().toLocaleTimeString()}`,
+        url: '/'
+      })
+    });
+    
+    if (response.ok) {
+      showPushStatus('Тестовое уведомление отправлено!', 'success');
+    } else {
+      throw new Error('Ошибка на сервере');
+    }
+  } catch (error) {
+    console.error('Ошибка отправки тестового push:', error);
+    showPushStatus(`Не удалось отправить: ${error.message}`, 'error');
+  }
+}
+
+//отображение статуса push
+function showPushStatus(message, type = 'info') {
+  const statusEl = document.getElementById('pushStatus');
+  if (statusEl) {
+    statusEl.textContent = message;
+    statusEl.style.color = type === 'error' ? '#dc2626' : '#10b981';
+    setTimeout(() => {
+      if (statusEl.textContent === message) {
+        statusEl.style.color = '#6b7280';
+      }
+    }, 3000);
+  }
+}
+
+//Показать временное всплывающее сообщение
+function showToast(message, duration = 3000) {
+  const oldToast = document.querySelector('.toast-message');
+  if (oldToast) oldToast.remove();
+  
+  const toast = document.createElement('div');
+  toast.className = 'toast-message';
+  toast.textContent = message;
+  toast.style.cssText = `
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1f2937;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    z-index: 2000;
+    animation: fadeInOut 3s ease;
+  `;
+  
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), duration);
+}
+
+/**
+ * Инициализация Push-интерфейса
+ */
+function initPushUI() {
+  const subscribeBtn = document.getElementById('subscribePushBtn');
+  const testBtn = document.getElementById('testPushBtn');
+  
+  if (subscribeBtn) {
+    subscribeBtn.addEventListener('click', subscribeToPush);
+  }
+  
+  if (testBtn) {
+    testBtn.addEventListener('click', sendTestPush);
+  }
+  
+  // Проверяем существующую подписку при загрузке
+  if ('serviceWorker' in navigator && 'PushManager' in window) {
+    navigator.serviceWorker.ready.then(registration => {
+      registration.pushManager.getSubscription().then(subscription => {
+        if (subscription) {
+          isSubscribed = true;
+          if (testBtn) testBtn.disabled = false;
+          showPushStatus('✅ Вы уже подписаны на уведомления', 'success');
+        }
+      });
+    });
+  }
 }
 
 // =========================================================
@@ -432,6 +719,10 @@ taskList.addEventListener('click', (event) => {
   if (action === 'delete') {
     deleteTask(taskId);
   }
+
+  if (action === 'edit') {
+  editTask(taskId);
+  }
 });
 
 /**
@@ -461,80 +752,271 @@ window.addEventListener('offline', updateNetworkStatus);
 // Инициализация
 // =========================================================
 
+
+/**
+ * Инициализация навигации
+ */
+function initNavigation() {
+  const navLinks = document.querySelectorAll('.nav-link');
+  navLinks.forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      const page = link.dataset.page;
+      if (page) {
+        loadContent(page);
+      }
+    });
+  });
+  
+  // Обработка кнопок назад/вперёд
+  window.addEventListener('popstate', (event) => {
+    if (event.state && event.state.page) {
+      loadContent(event.state.page);
+    } else {
+      loadContent('home');
+    }
+  });
+}
+
+/**
+ * Получение VAPID публичного ключа с сервера
+ */
+async function fetchVapidPublicKey() {
+  try {
+    const response = await fetch('/api/push/vapid-public-key');
+    if (!response.ok) throw new Error('Не удалось получить VAPID ключ');
+    const data = await response.json();
+    return data.publicKey;
+  } catch (error) {
+    console.error('Ошибка получения VAPID ключа:', error);
+    return null;
+  }
+}
+
+/**
+ * Подписка на push-уведомления
+ */
+async function subscribeToPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    showPushStatus('❌ Push API не поддерживается в этом браузере', 'error');
+    return false;
+  }
+
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      showPushStatus('Разрешение на уведомления не получено', 'error');
+      return false;
+    }
+    const registration = await navigator.serviceWorker.ready;
+
+    let subscription = await registration.pushManager.getSubscription();
+
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+    }
+
+    const response = await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(subscription)
+    });
+
+    if (response.ok) {
+  isSubscribed = true;
+  showPushStatus('Вы подписаны на уведомления!', 'success');
+
+  const testBtn = document.getElementById('testPushBtn');
+  if (testBtn) testBtn.disabled = false;
+  
+  const delayedSection = document.getElementById('delayedNotificationsSection');
+  if (delayedSection) delayedSection.style.display = 'block';
+  
+  return true;
+}else {
+      throw new Error('Ошибка при отправке подписки на сервер');
+    }
+  } catch (error) {
+    console.error('Ошибка подписки на Push:', error);
+    showPushStatus(`Ошибка: ${error.message}`, 'error');
+    return false;
+  }
+}
+
+/**
+ * Запланировать отложенное уведомление
+ */
+async function scheduleDelayedNotification() {
+  const titleInput = document.getElementById('reminderTitle');
+  const bodyInput = document.getElementById('reminderBody');
+  const delayInput = document.getElementById('reminderDelay');
+  
+  const title = titleInput?.value.trim();
+  const body = bodyInput?.value.trim();
+  const delaySeconds = parseInt(delayInput?.value || '10');
+  
+  if (!title) {
+    showPushStatus('Введите заголовок уведомления', 'error');
+    return;
+  }
+  
+  if (!body) {
+    showPushStatus('Введите текст уведомления', 'error');
+    return;
+  }
+  
+  if (isNaN(delaySeconds) || delaySeconds < 1 || delaySeconds > 3600) {
+    showPushStatus('Введите корректную задержку (1-3600 секунд)', 'error');
+    return;
+  }
+  
+  showPushStatus(`⏳ Планирование уведомления через ${delaySeconds} секунд...`, 'info');
+  
+  try {
+    const response = await fetch('/api/reminders/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title,
+        body,
+        delaySeconds,
+        url: '/'
+      })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      showPushStatus(`Уведомление запланировано! Отправится через ${delaySeconds} секунд`, 'success');
+
+      if (titleInput) titleInput.value = '';
+      if (bodyInput) bodyInput.value = '';
+      if (delayInput) delayInput.value = '10';
+
+      loadRemindersList();
+    } else {
+      const error = await response.json();
+      throw new Error(error.error || 'Ошибка планирования');
+    }
+  } catch (error) {
+    console.error('Ошибка планирования:', error);
+    showPushStatus(`${error.message}`, 'error');
+  }
+}
+
+/**
+ * Загрузить список активных напоминаний
+ */
+async function loadRemindersList() {
+  try {
+    const response = await fetch('/api/reminders/list');
+    if (!response.ok) throw new Error('Не удалось загрузить список');
+    
+    const data = await response.json();
+    const remindersList = document.getElementById('remindersList');
+    
+    if (!remindersList) return;
+    
+    if (data.reminders.length === 0) {
+      remindersList.innerHTML = '<p class="card__hint">Нет запланированных напоминаний</p>';
+      return;
+    }
+    
+    remindersList.innerHTML = `
+      <ul class="reminders-items">
+        ${data.reminders.map(r => `
+          <li class="reminder-item" data-id="${r.id}">
+            <div class="reminder-info">
+              <strong>${escapeHtml(r.title)}</strong>
+              <p>${escapeHtml(r.body)}</p>
+              <small>Отправится: ${new Date(r.scheduledFor).toLocaleTimeString()}</small>
+            </div>
+            <button class="button button--danger button--small cancel-reminder" data-id="${r.id}">Отменить</button>
+          </li>
+        `).join('')}
+      </ul>
+    `;
+
+    document.querySelectorAll('.cancel-reminder').forEach(btn => {
+      btn.addEventListener('click', () => cancelReminder(btn.dataset.id));
+    });
+  } catch (error) {
+    console.error('Ошибка загрузки списка:', error);
+  }
+}
+
+/**
+ * Отменить напоминание
+ */
+async function cancelReminder(reminderId) {
+  try {
+    const response = await fetch('/api/reminders/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reminderId: parseInt(reminderId) })
+    });
+    
+    if (response.ok) {
+      showPushStatus('Напоминание отменено', 'success');
+      loadRemindersList();
+    } else {
+      throw new Error('Ошибка отмены');
+    }
+  } catch (error) {
+    console.error('Ошибка отмены:', error);
+    showPushStatus('Не удалось отменить напоминание', 'error');
+  }
+}
+
+/**
+ * Экранирование HTML для безопасности
+ */
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// Периодическое обновление списка напоминаний (каждые 5 секунд)
+let remindersInterval = null;
+
+init();
+
+document.querySelectorAll('[data-filter]').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    currentFilter = e.target.dataset.filter;
+    renderTasks();
+  });
+});
+
+
+function startRemindersAutoRefresh() {
+  if (remindersInterval) clearInterval(remindersInterval);
+  remindersInterval = setInterval(() => {
+    if (document.getElementById('remindersList')) {
+      loadRemindersList();
+    }
+  }, 5000);
+}
+
 function init() {
   updateNetworkStatus();
   updateInstallHint();
   showRandomQuote();
   renderTasks();
   registerServiceWorker();
-}
+  initWebSocket();
+  initNavigation();
+  initPushUI();
+  startRemindersAutoRefresh();
 
-init();
+  const defaultPage = window.location.hash.slice(1) || 'home';
+  loadContent(defaultPage);
 
-// =========================
-// Практика 15: App Shell — загрузка контента из /content
-// =========================
-
-const contentViewEl = document.getElementById('contentView');
-
-async function loadPage(page) {
-  // page: 'home' | 'theory' | 'push'
-  const url = `/content/${page}.html`;
-
-  try {
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const html = await res.text();
-    contentViewEl.innerHTML = html;
-  } catch (e) {
-    // Если сеть недоступна, fetch может упасть.
-    // В ПР15 вы должны сделать так, чтобы Service Worker отдавал закешированный контент.
-    contentViewEl.innerHTML = `
-      <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:14px; background:#fff;">
-        <h2 style="margin:0 0 8px;">Нет доступа к контенту</h2>
-        <p style="margin:0; color:#374151;">Не удалось загрузить <code>${url}</code>. Проверьте сеть/HTTPS и кеширование в Service Worker.</p>
-      </section>
-    `;
+  const scheduleBtn = document.getElementById('scheduleReminderBtn');
+  if (scheduleBtn) {
+    scheduleBtn.addEventListener('click', scheduleDelayedNotification);
   }
 }
-
-// Кнопки навигации (App Shell)
-document.querySelectorAll('button[data-page]').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    const page = btn.getAttribute('data-page');
-    loadPage(page);
-  });
-});
-
-// По умолчанию показываем стартовую страницу
-loadPage('home');
-
-// =========================
-// Практика 16: WebSocket + Push (заготовки)
-// =========================
-
-/**
- * TODO (Практика 16): WebSocket
- *
- * Сервер уже принимает Socket.IO соединения (server/src/server.js).
- * В учебной заготовке мы НЕ подключаем socket.io-client автоматически,
- * чтобы студенты сделали это сами.
- *
- * Вариант:
- * 1) Подключить socket.io-client (через npm или через CDN)
- * 2) При добавлении/изменении/удалении задач отправлять событие:
- *    socket.emit('todo:event', {...})
- * 3) На socket.on('todo:event', ...) обновлять UI.
- */
-
-/**
- * TODO (Практика 16): Push API
- *
- * 1) Запросить разрешение Notification.requestPermission()
- * 2) Получить registration Service Worker
- * 3) registration.pushManager.subscribe(...)
- * 4) Отправить subscription на сервер: POST /api/push/subscribe
- * 5) Протестировать отправку: POST /api/push/test
- *
- * При получении push события логика в sw.js (см. push event).
- */

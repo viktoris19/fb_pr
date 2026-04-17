@@ -440,3 +440,174 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+.app-nav {
+  display: flex;
+  gap: 8px;
+  padding: 12px 0;
+  margin-top: 16px;
+  border-bottom: 1px solid #e5e7eb;
+  background: white;
+}
+
+.nav-link {
+  padding: 8px 16px;
+  border-radius: 20px;
+  text-decoration: none;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.nav-link:hover {
+  background: #f3f4f6;
+  color: #2563eb;
+}
+
+.nav-link.active {
+  background: #2563eb;
+  color: white;
+}
+
+#app-content {
+  margin: 24px 0;
+}
+
+.push-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+#pushStatus {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.notification {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: white;
+  border-radius: 12px;
+  padding: 12px 16px;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+  transform: translateX(400px);
+  transition: transform 0.3s ease;
+  z-index: 1000;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  border-left: 4px solid #2563eb;
+}
+
+.notification.show {
+  transform: translateX(0);
+}
+
+.notification--update {
+  border-left-color: #f59e0b;
+}
+
+.notification-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #9ca3af;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
+  15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  85% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+}
+
+.toast-message {
+  animation: fadeInOut 3s ease forwards;
+}
+
+.reminder-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-group label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.reminders-list {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.reminders-list h3 {
+  font-size: 16px;
+  margin-bottom: 12px;
+  color: #1f2937;
+}
+
+.reminders-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.reminder-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.reminder-info {
+  flex: 1;
+}
+
+.reminder-info strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #1f2937;
+}
+
+.reminder-info p {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.reminder-info small {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.cancel-reminder {
+  margin-left: 12px;
+}
+
+#delayedNotificationsSection {
+  transition: all 0.3s ease;
+}
+
+textarea.input {
+  resize: vertical;
+  font-family: inherit;
+}

@@ -42,6 +42,8 @@ const CONTENT_PAGES = [
   '/content/push.html'
 ];
 
+const OFFLINE_FALLBACK = '/offline.html';
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     (async () => {
@@ -85,14 +87,23 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // 1) Контентные страницы (App Shell): Network First
   if (url.pathname.startsWith('/content/')) {
     event.respondWith(networkFirst(event.request));
     return;
   }
 
-  // 2) «Оболочка» и статика: Cache First
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(staleWhileRevalidate(event.request));
+    return;
+  }
+
   event.respondWith(cacheFirst(event.request));
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 async function cacheFirst(request) {
@@ -101,10 +112,18 @@ async function cacheFirst(request) {
 
   try {
     const res = await fetch(request);
-    // TODO (студентам): можно положить часть ресурсов в runtime cache
+    if (res && res.status === 200) { 
+      const cache = await caches.open(RUNTIME_CACHE);
+      cache.put(request, res.clone()); 
+    }
     return res;
-  } catch {
-    return new Response('Офлайн: ресурс недоступен и не найден в кеше.', {
+  } catch (error) {
+    console.warn('Не удалось загрузить ресурс:', request.url);
+    if (request.url.match(/\.(png|jpg|jpeg|svg|gif)$/i)) {
+      return new Response('', { status: 204 });
+    }
+    return new Response('Офлайн: ресурс недоступен', {
+      status: 503,
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     });
   }
@@ -115,10 +134,14 @@ async function networkFirst(request) {
 
   try {
     const res = await fetch(request);
+    if (res && res.status === 200) {
+      cache.put(request,res.clone());
+    }
     // Кешируем свежую версию
     cache.put(request, res.clone());
     return res;
-  } catch {
+  } catch (error) {
+    console.log('Сеть недоступна, берём из кэша:', request.url);
     // Сети нет — отдаём из runtime cache
     const cached = await cache.match(request);
     if (cached) return cached;
@@ -127,10 +150,29 @@ async function networkFirst(request) {
     const shellCached = await caches.match(request);
     if (shellCached) return shellCached;
 
+    if (request.headers.get('accept')?.includes('text/html')) {
+      return caches.match(OFFLINE_FALLBACK);
+    }
+
     return new Response('Офлайн: контент недоступен и не найден в кеше.', {
+      status: 503,
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     });
   }
+}
+
+async function staleWhileRevalidate(request) {
+  const cache = await caches.open(RUNTIME_CACHE);
+  const cached = await cache.match(request);
+  
+  const fetchPromise = fetch(request).then(res => {
+    if (res && res.status === 200) {
+      cache.put(request, res.clone());
+    }
+    return res;
+  }).catch(() => null);
+  
+  return cached || fetchPromise;
 }
 
 // =========================
@@ -145,6 +187,14 @@ self.addEventListener('push', (event) => {
   const options = {
     body: data.body || 'У вас новое событие.',
     data: { url: data.url || '/' },
+    icon: '/assets/icons/favicon-128x128.png',
+    badge: '/assets/icons/favicon-64x64.png',
+    actions: [
+      {
+        action: 'snooze_5m',
+        title: 'Отложить на 5 минут'
+      }
+    ]
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
@@ -154,19 +204,44 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
   const url = event.notification?.data?.url || '/';
+  const action = event.action;
+  const reminderId = event.notification?.data?.reminderId;
+
+  if (action === 'snooze_5m') {
+    event.waitUntil(
+      (async () => {
+        console.log('Пользователь отложил уведомление на 5 минут');
+
+        if (reminderId) {
+          await fetch('/api/reminders/snooze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reminderId: parseInt(reminderId) })
+          });
+        }
+
+        const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const client of clients) {
+          client.postMessage({
+            type: 'SHOW_TOAST',
+            message: 'Напоминание отложено на 5 минут'
+          });
+        }
+      })()
+    );
+    return;
+  }
 
   event.waitUntil(
     (async () => {
       const allClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
 
-      // Если вкладка уже открыта — фокусируем её
       for (const client of allClients) {
         if (client.url.includes(url) && 'focus' in client) {
           return client.focus();
         }
       }
 
-      // Иначе открываем новую
       if (clients.openWindow) {
         return clients.openWindow(url);
       }

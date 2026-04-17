@@ -24,9 +24,12 @@ function configureWebPush({ subject, publicKey, privateKey }) {
   webpush.setVapidDetails(subject || 'mailto:teacher@example.com', publicKey, privateKey);
 }
 
-async function sendNotification(subscription, payload) {
-  // payload должен быть строкой (обычно JSON.stringify(...))
-  return webpush.sendNotification(subscription, payload);
+async function sendNotification(subscription, payload, reminderId = null) {
+  let payloadObj = typeof payload === 'string' ? JSON.parse(payload) : payload;
+  if (reminderId) {
+    payloadObj.reminderId = reminderId;
+  }
+  return webpush.sendNotification(subscription, JSON.stringify(payloadObj));
 }
 
 // CLI mode: npm run vapid

@@ -54,10 +54,10 @@
           </div>
 
           <div class="hero__content">
-            <p class="hero__eyebrow">ПРАКТИКИ 15–16</p>
+            <p class="hero__eyebrow">ПРАКТИКИ 13–18</p>
             <h1 class="hero__title">Учебный TODO-менеджер</h1>
             <p class="hero__text">
-              Заготовка под HTTPS, App Shell, WebSocket, Push API,
+              Заготовка под Service Worker, Web App Manifest, offline-first,
               локальное хранилище браузера и установку приложения как PWA.
             </p>
 
@@ -92,16 +92,29 @@
             </p>
           </div>
         </section>
-      <nav class="nav" style="max-width: 980px; margin: 0 auto; padding: 0 16px 16px; display:flex; gap:10px; flex-wrap:wrap;">
-  <button class="btn" data-page="home">Старт</button>
-  <button class="btn" data-page="theory">Теория</button>
-  <button class="btn" data-page="push">WebSocket/Push</button>
-</nav>
-<main id="contentView" style="max-width: 980px; margin: 0 auto; padding: 0 16px 16px;"></main>
-</header>
+      </header>
 
       <!-- ========================= -->
-      <!-- ОСНОВНОЕ СОДЕРЖИМОЕ       -->
+      <!-- НАВИГАЦИЯ (App Shell)      -->
+      <!-- ========================= -->
+      <nav class="app-nav container">
+        <a href="#" data-page="home" class="nav-link active">🏠 Главная</a>
+        <a href="#" data-page="theory" class="nav-link">📖 Теория кэширования</a>
+        <a href="#" data-page="push" class="nav-link">🔔 Push + WebSocket</a>
+      </nav>
+
+      <!-- ========================= -->
+      <!-- ДИНАМИЧЕСКИЙ КОНТЕНТ       -->
+      <!-- ========================= -->
+      <div id="app-content" class="container">
+        <!-- Сюда будет загружаться контент из /content/ -->
+        <div class="card">
+          <p style="text-align: center; color: #6b7280;">Загрузка контента...</p>
+        </div>
+      </div>
+
+      <!-- ========================= -->
+      <!-- ОСНОВНОЕ СОДЕРЖИМОЕ (TODO) -->
       <!-- ========================= -->
       <main class="container">
         <section class="card">
@@ -141,6 +154,15 @@
           </div>
 
           <div id="taskStats" class="stats">Всего: 0 | Активных: 0 | Выполненных: 0</div>
+          
+          <div class="filter-section">
+            <span class="filter-label">Фильтр:</span>
+            <div class="filter-buttons">
+              <button data-filter="all" class="button button--small button--filter active">Все</button>
+              <button data-filter="active" class="button button--small button--filter">Активные</button>
+              <button data-filter="completed" class="button button--small button--filter">Выполненные</button>
+            </div>
+          </div>
 
           <!--
             Сюда JavaScript динамически отрисовывает список задач.
@@ -149,14 +171,74 @@
           <ul id="taskList" class="task-list"></ul>
         </section>
 
+        <!-- ========================= -->
+        <!-- PUSH-УПРАВЛЕНИЕ            -->
+        <!-- ========================= -->
+        <section class="card">
+          <h2 class="card__title">Push-уведомления и синхронизация</h2>
+          
+          <div class="push-controls">
+            <button id="subscribePushBtn" class="button button--primary button--small">
+              Подписаться на уведомления
+            </button>
+            <button id="testPushBtn" class="button button--secondary button--small" disabled>
+              Отправить тестовое уведомление
+            </button>
+            <p id="pushStatus" class="card__hint" style="margin-top: 8px;"></p>
+          </div>
+          
+          <p class="card__hint" style="margin-top: 12px;">
+            <strong>WebSocket:</strong> Откройте приложение в двух вкладках — задачи будут синхронизироваться в реальном времени.<br>
+            <strong>Push:</strong> После подписки вы сможете получать уведомления даже когда приложение закрыто.
+          </p>
+        </section>
+        
+<section id="delayedNotificationsSection" class="card" style="display: none;">
+  <h2 class="card__title">⏰ Отложенные push-уведомления</h2>
+
+  <div class="reminder-form">
+    <div class="form-group">
+      <label for="reminderTitle">Заголовок</label>
+      <input type="text" id="reminderTitle" class="input" placeholder="Напоминание" maxlength="100">
+    </div>
+
+    <div class="form-group">
+      <label for="reminderBody">Текст уведомления</label>
+      <textarea id="reminderBody" class="input" rows="2" placeholder="Что нужно сделать?" maxlength="200"></textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="reminderDelay">Задержка (секунды)</label>
+      <input type="number" id="reminderDelay" class="input" value="10" min="1" max="3600" step="5">
+    </div>
+
+    <button id="scheduleReminderBtn" class="button button--primary">
+      📅 Запланировать уведомление
+    </button>
+  </div>
+
+  <div class="reminders-list">
+    <h3>Активные напоминания</h3>
+    <div id="remindersList">
+      <p class="card__hint">Нет запланированных напоминаний</p>
+    </div>
+  </div>
+
+  <p class="card__hint" style="margin-top: 12px;">
+    💡 Уведомления будут отправлены даже если приложение закрыто.<br>
+    💡 Максимальная задержка — 1 час (3600 секунд).
+  </p>
+</section>
         <section class="card">
           <h2 class="card__title">Что студенту нужно доделать</h2>
           <ol class="todo-points">
-            <li>Реализовать редактирование существующей задачи.</li>
-            <li>Добавить фильтрацию: все / активные / выполненные.</li>
-            <li>Улучшить стратегию кэширования в <code>sw.js</code>.</li>
-            <li>Проверить установку PWA в Chromium и Safari.</li>
-            <li>Просто возьми и сделай это!</li>
+            <li>✅ Реализовать редактирование существующей задачи.</li>
+            <li>✅ Добавить фильтрацию: все / активные / выполненные.</li>
+            <li>✅ Улучшить стратегию кэширования в <code>sw.js</code>.</li>
+            <li>✅ Проверить установку PWA в Chromium и Safari.</li>
+            <li>✅ WebSocket: синхронизация задач между вкладками.</li>
+            <li>✅ Push API: подписка и получение уведомлений.</li>
+            <li>🎯 Просто возьми и сделай это!</li>
           </ol>
           <p class="card__hint">
             Полный список доработок и контрольных вопросов смотрите в файле <code>STUDENT_TASKS.md</code>.
@@ -190,6 +272,9 @@
       </footer>
     </div>
 
+    <!-- Подключение Socket.IO клиента -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    
     <!-- Основная логика приложения -->
     <script src="./app.js"></script>
   </body>
